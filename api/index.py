@@ -2,7 +2,7 @@
 from __future__ import annotations
 from flask import Flask, render_template, request, jsonify
 import csv, datetime, hashlib, os, unicodedata, random
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Optional
 
 # --- 경로 설정 (api/ 기준으로 상위 폴더의 자원 접근) ---
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))  # 프로젝트 루트
@@ -112,14 +112,27 @@ def api_players():
 def api_teams():
     return jsonify(TEAM_ROSTER)
 
+def _int_or_none(x: Any) -> Optional[int]:
+    try:
+        return int(str(x).strip())
+    except Exception:
+        return None
+
 def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
     out: Dict[str,str] = {}
     out["team"] = "green" if (guess.get("team","")==ans.get("team","")) else "black"
-    # number
-    try:
-        gn, an = int(guess.get("number",0)), int(ans.get("number",0))
-        out["number"] = "green" if gn==an else ("yellow" if within(gn,an,2) else "black")
-    except: out["number"]="black"
+    # number (노란불은 등번호 차이가 ±2일 때만)
+    gn = _int_or_none(guess.get("number"))
+    an = _int_or_none(ans.get("number"))
+    if gn is not None and an is not None:
+        if gn == an:
+            out["number"] = "green"
+        elif abs(gn - an) <= 2:
+            out["number"] = "yellow"
+        else:
+            out["number"] = "black"
+    else:
+        out["number"] = "black"
     # position
     gp, ap = (guess.get("position","") or ""), (ans.get("position","") or "")
     out["position"] = "green" if (gp and gp==ap) else ("yellow" if pos_group(gp)==pos_group(ap) else "black")
@@ -174,4 +187,20 @@ def api_player_info():
         "draft_type": p.get("draft_type",""),
         "draft_round": p.get("draft_round",""),
         "draft_overall": p.get("draft_overall","")
+    })
+
+@app.route("/api/_answer")
+def api__answer():
+    a = answer_player()
+    return jsonify({
+        "name": a.get("name",""),
+        "team": a.get("team",""),
+        "number": a.get("number",""),
+        "position": a.get("position",""),
+        "height_cm": a.get("height_cm",""),
+        "player_type": a.get("player_type",""),
+        "draft_year": a.get("draft_year",""),
+        "draft_type": a.get("draft_type",""),
+        "draft_round": a.get("draft_round",""),
+        "draft_overall": a.get("draft_overall",""),
     })
