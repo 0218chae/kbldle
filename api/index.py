@@ -1,7 +1,7 @@
 # api/index.py
 from __future__ import annotations
 from flask import Flask, render_template, request, jsonify
-import csv, datetime, hashlib, os, unicodedata, random
+import csv, datetime, hashlib, os, unicodedata, random, re
 from typing import Dict, List, Tuple, Any, Optional
 
 # --- 경로 설정 (api/ 기준으로 상위 폴더의 자원 접근) ---
@@ -113,8 +113,14 @@ def api_teams():
     return jsonify(TEAM_ROSTER)
 
 def _int_or_none(x: Any) -> Optional[int]:
+    if x is None:
+        return None
+    s = str(x).strip()
+    m = re.search(r"-?\d+", s)
+    if not m:
+        return None
     try:
-        return int(str(x).strip())
+        return int(m.group(0))
     except Exception:
         return None
 
@@ -223,4 +229,27 @@ def api__answer():
         "draft_type": a.get("draft_type",""),
         "draft_round": a.get("draft_round",""),
         "draft_overall": a.get("draft_overall",""),
+    })
+
+@app.route("/api/_guess_debug")
+def api__guess_debug():
+    name = (request.args.get("name") or "").strip()
+    idx = NAME2IDX.get(name) or NORMNAME2IDX.get(normalize_name(name))
+    if idx is None:
+        return jsonify({"error": "unknown player"}), 400
+    g = PLAYERS[idx]
+    a = answer_player()
+    gn = _int_or_none(g.get("number"))
+    an = _int_or_none(a.get("number"))
+    diff = (abs(gn - an) if gn is not None and an is not None else None)
+    colors = compare_fields(g, a)
+    return jsonify({
+        "guess_name": g.get("name",""),
+        "guess_number_raw": g.get("number",""),
+        "guess_number_int": gn,
+        "answer_name": a.get("name",""),
+        "answer_number_raw": a.get("number",""),
+        "answer_number_int": an,
+        "abs_diff": diff,
+        "number_color": colors.get("number"),
     })
