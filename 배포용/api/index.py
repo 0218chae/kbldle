@@ -168,8 +168,6 @@ def api_player_info():
         "draft_overall": p.get("draft_overall","")
     })
 
-# ★★ Vercel 엔트리 포인트: handler 함수로 노출 ★★
+from vercel_wsgi import handle
 def handler(event, context):
     return handle(app, event, context)
-
-# app.run(...) 금지! (Vercel에서 500남)
