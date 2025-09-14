@@ -118,6 +118,17 @@ def _int_or_none(x: Any) -> Optional[int]:
     except Exception:
         return None
 
+def _ptype_norm(x: Any) -> str:
+    s = str(x or "").strip()
+    s = unicodedata.normalize("NFC", s)
+    # common variants -> unified labels
+    table = {
+        "국내": "국내", "국내선수": "국내",
+        "외국": "외국", "외국선수": "외국", "외국인": "외국",
+        "귀화": "귀화", "귀화선수": "귀화",
+    }
+    return table.get(s, s)
+
 def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
     out: Dict[str,str] = {}
     out["team"] = "green" if (guess.get("team","")==ans.get("team","")) else "black"
@@ -136,11 +147,20 @@ def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
     # position
     gp, ap = (guess.get("position","") or ""), (ans.get("position","") or "")
     out["position"] = "green" if (gp and gp==ap) else ("yellow" if pos_group(gp)==pos_group(ap) else "black")
-    # height
-    gh, ah = guess.get("height_cm",""), ans.get("height_cm","")
-    out["height_cm"] = "green" if (gh and ah and str(gh)==str(ah)) else ("yellow" if height_tens_equal(gh,ah) else "black")
-    # player_type
-    out["player_type"] = "green" if guess.get("player_type","")==ans.get("player_type","") else "black"
+    # height (그린: 동일, 옐로우: ±3cm)
+    gh = _int_or_none(guess.get("height_cm"))
+    ah = _int_or_none(ans.get("height_cm"))
+    if gh is not None and ah is not None:
+        if gh == ah:
+            out["height_cm"] = "green"
+        elif abs(gh - ah) <= 3:
+            out["height_cm"] = "yellow"
+        else:
+            out["height_cm"] = "black"
+    else:
+        out["height_cm"] = "black"
+    # player_type (정규화 후 정확히 같을 때만 green)
+    out["player_type"] = "green" if _ptype_norm(guess.get("player_type","")) == _ptype_norm(ans.get("player_type","")) else "black"
     # draft
     out["draft"] = "green" if draft_tuple(guess)==draft_tuple(ans) else ("yellow" if draft_yellow(guess,ans) else "black")
     # 정답이면 전부 초록
