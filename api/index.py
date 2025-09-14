@@ -3,7 +3,6 @@ from __future__ import annotations
 from flask import Flask, render_template, request, jsonify
 import csv, datetime, hashlib, os, unicodedata, random
 from typing import Dict, List, Tuple, Any
-from vercel_wsgi import handle  # ★ Vercel WSGI 어댑터
 
 # --- 경로 설정 (api/ 기준으로 상위 폴더의 자원 접근) ---
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))  # 프로젝트 루트
@@ -96,6 +95,15 @@ def index():
 def api_status():
     return jsonify({"max_guesses": MAX_GUESSES})
 
+@app.route("/health")
+def health():
+    info = {
+        "ROOT_DIR": ROOT_DIR,
+        "DATA_CSV": DATA_CSV,
+        "csv_exists": os.path.exists(DATA_CSV),
+    }
+    return jsonify(info)
+
 @app.route("/api/players")
 def api_players():
     return jsonify([p["name"] for p in PLAYERS])
@@ -167,7 +175,3 @@ def api_player_info():
         "draft_round": p.get("draft_round",""),
         "draft_overall": p.get("draft_overall","")
     })
-
-from vercel_wsgi import handle
-def handler(event, context):
-    return handle(app, event, context)
