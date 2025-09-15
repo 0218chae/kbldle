@@ -1,8 +1,14 @@
-# api/index.py
 from __future__ import annotations
 from flask import Flask, render_template, request, jsonify
 import csv, datetime, hashlib, os, unicodedata, random, re
 from typing import Dict, List, Tuple, Any, Optional
+
+TEAM_ALL_KEYS = {"KBL", "ALL", "전체", "ALL_KBL", ""}
+def filter_players_by_team(team_key: Optional[str]) -> List[Dict[str, Any]]:
+    key = (team_key or "").strip()
+    if key in TEAM_ALL_KEYS:
+        return PLAYERS
+    return [p for p in PLAYERS if str(p.get("team","")) == key]
 
 def kst_today_str() -> str:
     return (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).strftime('%Y-%m-%d')
@@ -24,7 +30,7 @@ app = Flask(
 )
 
 MAX_GUESSES = 9
-CURRENT_ANSWER_IDX = None
+CURRENT_ANSWER_IDX: Dict[str, int] = {}
 
 def now_utc_date_str() -> str:
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
@@ -84,19 +90,30 @@ PLAYERS, TEAM_ROSTER = load_players(DATA_CSV)
 NAME2IDX: Dict[str,int] = {p["name"]: i for i,p in enumerate(PLAYERS)}
 NORMNAME2IDX: Dict[str,int] = {normalize_name(p["name"]): i for i,p in enumerate(PLAYERS)}
 
-def answer_player() -> Dict[str, Any]:
-    if not PLAYERS:
+def answer_player(team_key: Optional[str] = None) -> Dict[str, Any]:
+    # 팀 필터별로 현재 라운드의 정답 인덱스를 캐싱. 페이지 새로고침 시 index()에서 캐시가 비워져 새로운 정답이 생성됨.
+    pool = filter_players_by_team(team_key)
+    if not pool:
         return {}
-    idx = daily_answer_index(len(PLAYERS))
-    return PLAYERS[idx]
+    key = (team_key or 'ALL')
+    if key not in CURRENT_ANSWER_IDX:
+        CURRENT_ANSWER_IDX[key] = random.randrange(len(pool))
+    return pool[CURRENT_ANSWER_IDX[key]]
 
 @app.route("/")
 def index():
+    # 새로고침 시 오늘 라운드(정답) 리셋: 팀별 정답 인덱스 캐시를 비움
+    try:
+        CURRENT_ANSWER_IDX.clear()
+    except Exception:
+        pass
     return render_template("index.html")
 
 @app.route("/api/status")
 def api_status():
-    return jsonify({"max_guesses": MAX_GUESSES})
+    team_key = (request.args.get("team") or "").strip()
+    maxg = 19 if (team_key in TEAM_ALL_KEYS) else 9
+    return jsonify({"max_guesses": maxg, "team": (team_key or "KBL")})
 
 @app.route("/health")
 def health():
@@ -110,6 +127,12 @@ def health():
 @app.route("/api/players")
 def api_players():
     return jsonify([p["name"] for p in PLAYERS])
+
+@app.route("/api/players_full")
+def api_players_full():
+    team_key = (request.args.get("team") or "").strip()
+    pool = filter_players_by_team(team_key)
+    return jsonify([{ "name": p.get("name",""), "team": p.get("team",""), "number": p.get("number","") } for p in pool])
 
 @app.route("/api/teams")
 def api_teams():
@@ -222,10 +245,24 @@ def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
 def api_guess():
     data = request.get_json(force=True) or {}
     raw = (data.get("name") or "").strip()
-    idx = NAME2IDX.get(raw) or NORMNAME2IDX.get(normalize_name(raw))
+    team_filter = (data.get("team_filter") or "").strip()
+    team_of_guess = (data.get("team_of_guess") or "").strip()
+
+    # resolve the guessed player: prefer exact (name+team) if provided
+    idx = None
+    if team_of_guess:
+        for i,p in enumerate(PLAYERS):
+            if p.get("name","") == raw and p.get("team","") == team_of_guess:
+                idx = i
+                break
+    if idx is None:
+        idx = NAME2IDX.get(raw) or NORMNAME2IDX.get(normalize_name(raw))
     if idx is None:
         return jsonify({"error":"등록되지 않은 선수입니다."}), 400
-    g = PLAYERS[idx]; a = answer_player()
+
+    g = PLAYERS[idx]
+    a = answer_player(team_filter)
+
     colors = compare_fields(g,a)
     return jsonify({
         "name": g.get("name",""),
@@ -267,7 +304,7 @@ def api_player_info():
 
 @app.route("/api/_answer")
 def api__answer():
-    a = answer_player()
+    a = answer_player(request.args.get("team"))
     return jsonify({
         "name": a.get("name",""),
         "team": a.get("team",""),
@@ -283,7 +320,8 @@ def api__answer():
 
 @app.route("/api/answer")
 def api_answer_public():
-    a = answer_player()
+    team_key = (request.args.get("team") or "").strip()
+    a = answer_player(team_key)
     return jsonify({
         "name": a.get("name",""),
         "team_value": a.get("team",""),
@@ -297,11 +335,12 @@ def api_answer_public():
 @app.route("/api/_guess_debug")
 def api__guess_debug():
     name = (request.args.get("name") or "").strip()
+    team_filter = (request.args.get("team") or "").strip()
     idx = NAME2IDX.get(name) or NORMNAME2IDX.get(normalize_name(name))
     if idx is None:
         return jsonify({"error": "unknown player"}), 400
     g = PLAYERS[idx]
-    a = answer_player()
+    a = answer_player(team_filter)
     gn = _int_or_none(g.get("number"))
     an = _int_or_none(a.get("number"))
     diff = (abs(gn - an) if gn is not None and an is not None else None)
@@ -336,4 +375,5 @@ def api__guess_debug():
             "overall": a.get("draft_overall",""),
         },
         "draft_color": colors.get("draft"),
+        "team_filter": team_filter,
     })

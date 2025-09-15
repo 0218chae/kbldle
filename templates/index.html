@@ -36,6 +36,9 @@
     .footer { margin-top:12px; font-size:12px; color:#666; display:flex; justify-content:space-between; gap:8px; align-items:center; }
     .left { display:flex; gap:8px; align-items:center; }
 
+    .mode { margin: 8px 0 12px; }
+    .mode select { padding:6px 8px; border:1px solid #ddd; border-radius:6px; }
+
     @media (max-width: 640px) {
       body { margin: 12px; }
       h1 { font-size: 20px; }
@@ -47,6 +50,13 @@
 </head>
 <body>
   <h1>크블틀(KBL)</h1>
+
+  <div class="mode">
+    <label for="teamFilter">모드: </label>
+    <select id="teamFilter">
+      <option value="KBL" selected>KBL(전체)</option>
+    </select>
+  </div>
 
   <div class="guess-box">
     <input id="name" list="players" placeholder="선수 이름 입력">
@@ -83,20 +93,49 @@
     let allNames = [];
     let nameSet = new Set();
 
-    async function init() {
-      // 상태/플레이어 로드
-      try {
-        const st = await (await fetch('/api/status')).json();
-        if (st && typeof st.max_guesses === 'number') {
-          remaining = st.max_guesses;
-          document.getElementById('remain').textContent = remaining;
-        }
-      } catch(e) {}
-      allNames = await (await fetch('/api/players')).json();
-      nameSet = new Set(allNames);
+    function currentTeam(){
+      const v = (document.getElementById('teamFilter').value||'').trim();
+      return v || 'KBL';
+    }
+    async function loadPlayersForCurrentMode(){
+      const team = currentTeam();
+      const st = await (await fetch('/api/status?team=' + encodeURIComponent(team))).json();
+      remaining = st.max_guesses; document.getElementById('remain').textContent = remaining;
+
       const dl = document.getElementById('players');
       dl.innerHTML = '';
-      allNames.forEach(n => { const o=document.createElement('option'); o.value=n; dl.appendChild(o); });
+      const list = await (await fetch('/api/players_full?team=' + encodeURIComponent(team))).json();
+      allNames = list.map(x => x.name);
+      nameSet = new Set(allNames);
+      list.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.name;               // 입력값은 이름만 유지
+        opt.textContent = `${p.name} (${p.team}, ${p.number||'-'})`; // 목록에는 팀/번호 노출
+        opt.dataset.team = p.team || '';
+        opt.dataset.number = p.number || '';
+        dl.appendChild(opt);
+      });
+    }
+
+    async function init() {
+      // load teams for mode selector (reuse team roster keys)
+      try {
+        const t = await (await fetch('/api/teams')).json();
+        const sel = document.getElementById('teamFilter');
+        Object.keys(t).sort().forEach(team => {
+          const opt = document.createElement('option');
+          opt.value = team; opt.textContent = team;
+          sel.appendChild(opt);
+        });
+      } catch (e) {}
+
+      await loadPlayersForCurrentMode();
+      document.getElementById('teamFilter').addEventListener('change', async ()=>{
+        await loadPlayersForCurrentMode();
+        document.querySelector('#guesses tbody').innerHTML = '';
+        remaining = (await (await fetch('/api/status?team=' + encodeURIComponent(currentTeam()))).json()).max_guesses;
+        document.getElementById('remain').textContent = remaining;
+      });
     }
 
     async function loadPreviewFor(name) {
@@ -134,7 +173,7 @@
 
     async function revealAnswer() {
       try {
-        const r = await fetch('/api/answer');
+        const r = await fetch('/api/answer?team=' + encodeURIComponent(currentTeam()));
         if (!r.ok) return;
         const a = await r.json();
         alert(
@@ -153,10 +192,14 @@
       if (remaining<=0) return;
       const name = document.getElementById('name').value.trim();
       if (!name) return;
+
+      const teamFilter = currentTeam();
+      let teamOfGuess = '';
+      const opts = document.querySelectorAll('#players option');
+      for (const o of opts){ if (o.value === name){ teamOfGuess = o.dataset.team || ''; break; } }
       const r = await fetch('/api/guess',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({name})
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ name, team_filter: teamFilter, team_of_guess: teamOfGuess })
       });
       if (!r.ok) { alert("선수를 찾을 수 없습니다"); return; }
       const res = await r.json();
