@@ -207,6 +207,21 @@ def pos_letters(pos: Any) -> set:
             s.add(ch)
     return s
 
+def draft_color_by_rule(g: Dict[str, Any], a: Dict[str, Any]) -> str:
+    gy, ay = str(g.get("draft_year", "") or ""), str(a.get("draft_year", "") or "")
+    gr, ar = str(g.get("draft_round", "") or ""), str(a.get("draft_round", "") or "")
+    # If either side lacks data, be conservative: black
+    if not gy or not ay or not gr or not ar:
+        return "black"
+    # 초록: 같은 년도 같은 라운드 (순번/타입 무관)
+    if (gy == ay) and (gr == ar):
+        return "green"
+    # 노랑: 다른 년도 같은 라운드 (순번/타입 무관)
+    if (gy != ay) and (gr == ar):
+        return "yellow"
+    # 검정: 그 외 전부 (예: 같은 년도 다른 라운드, 다른 년도 다른 라운드 등)
+    return "black"
+
 def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
     out: Dict[str,str] = {}
     out["team"] = "green" if (_normstr(guess.get("team","")) == _normstr(ans.get("team",""))) else "black"
@@ -244,8 +259,8 @@ def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
         out["height_cm"] = "black"
     # player_type (정규화 후 정확히 같을 때만 green)
     out["player_type"] = "green" if _ptype_norm(guess.get("player_type","")) == _ptype_norm(ans.get("player_type","")) else "black"
-    # draft
-    out["draft"] = "green" if draft_tuple(guess)==draft_tuple(ans) else ("yellow" if draft_yellow(guess,ans) else "black")
+    # draft (사용자 지정 규칙)
+    out["draft"] = draft_color_by_rule(guess, ans)
     # 정답이면 전부 초록
     if _same_name(guess.get("name",""), ans.get("name","")):
         for k in ["team","number","position","height_cm","player_type","draft"]:
