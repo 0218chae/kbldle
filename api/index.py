@@ -4,6 +4,14 @@ from flask import Flask, render_template, request, jsonify
 import csv, datetime, hashlib, os, unicodedata, random, re
 from typing import Dict, List, Tuple, Any, Optional
 
+def kst_today_str() -> str:
+    return (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).strftime('%Y-%m-%d')
+
+def daily_answer_index(n: int, salt: str = 'kbltle') -> int:
+    import hashlib
+    h = hashlib.sha256(f"{salt}:{kst_today_str()}".encode('utf-8')).hexdigest()
+    return int(h, 16) % max(1, n)
+
 # --- 경로 설정 (api/ 기준으로 상위 폴더의 자원 접근) ---
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))  # 프로젝트 루트
 DATA_CSV = os.path.join(ROOT_DIR, "kbl_players_2025.csv")
@@ -20,9 +28,6 @@ CURRENT_ANSWER_IDX = None
 
 def now_utc_date_str() -> str:
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
-
-def this_year_utc() -> int:
-    return datetime.datetime.now(datetime.timezone.utc).year
 
 def normalize_name(s: str) -> str:
     if not s: return ""
@@ -79,20 +84,14 @@ PLAYERS, TEAM_ROSTER = load_players(DATA_CSV)
 NAME2IDX: Dict[str,int] = {p["name"]: i for i,p in enumerate(PLAYERS)}
 NORMNAME2IDX: Dict[str,int] = {normalize_name(p["name"]): i for i,p in enumerate(PLAYERS)}
 
-def reset_answer():
-    global CURRENT_ANSWER_IDX
-    if PLAYERS: CURRENT_ANSWER_IDX = random.randrange(0, len(PLAYERS))
-    else: CURRENT_ANSWER_IDX = None
-
 def answer_player() -> Dict[str, Any]:
-    global CURRENT_ANSWER_IDX
-    if CURRENT_ANSWER_IDX is None:
-        reset_answer()
-    return PLAYERS[CURRENT_ANSWER_IDX]
+    if not PLAYERS:
+        return {}
+    idx = daily_answer_index(len(PLAYERS))
+    return PLAYERS[idx]
 
 @app.route("/")
 def index():
-    reset_answer()  # 새로고침 시 매번 랜덤
     return render_template("index.html")
 
 @app.route("/api/status")
@@ -154,6 +153,18 @@ def _fmt_draft(p: Dict[str, Any]) -> str:
 def _same_name(a: Any, b: Any) -> bool:
     return normalize_name(str(a or "")) == normalize_name(str(b or ""))
 
+def pos_codes(pos: Any) -> tuple:
+    s = str(pos or "").upper()
+    s_nf = unicodedata.normalize("NFKC", s)
+    codes = set()
+    if "가드" in s_nf: codes.add('G')
+    if "포워드" in s_nf: codes.add('F')
+    if "센터" in s_nf: codes.add('C')
+    if 'G' in s_nf: codes.add('G')
+    if 'F' in s_nf: codes.add('F')
+    if 'C' in s_nf: codes.add('C')
+    return tuple(sorted(codes))
+
 def pos_letters(pos: Any) -> set:
     p = str(pos or "").upper()
     s = set()
@@ -178,12 +189,14 @@ def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
     else:
         out["number"] = "black"
     # position (정확히 같으면 green, 글자 집합 교집합 있으면 yellow)
-    gp, ap = (guess.get("position","") or ""), (ans.get("position","") or "")
-    if gp and ap and gp == ap:
+    gp_raw, ap_raw = (guess.get("position","") or ""), (ans.get("position","") or "")
+    gc, ac = pos_codes(gp_raw), pos_codes(ap_raw)
+    if gc and ac and gc == ac:
         out["position"] = "green"
+    elif gc and ac and (set(gc) & set(ac)):
+        out["position"] = "yellow"
     else:
-        gs, as_ = pos_letters(gp), pos_letters(ap)
-        out["position"] = "yellow" if (gs and as_ and (gs & as_)) else "black"
+        out["position"] = "black"
     # height (그린: 동일, 옐로우: ±3cm)
     gh = _int_or_none(guess.get("height_cm"))
     ah = _int_or_none(ans.get("height_cm"))
