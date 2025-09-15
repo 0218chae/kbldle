@@ -50,12 +50,16 @@ def draft_tuple(p: Dict[str, Any]) -> Tuple[str,str,str,str]:
             str(p.get("draft_round","") or ""),
             str(p.get("draft_overall","") or ""))
 
-# 노란불: 같은 '드래프트 타입' + 같은 '라운드'일 때만
+# 노란불: 같은 '드래프트 타입' + 같은 '연도' + 같은 '라운드' (단, 전체 튜플은 불일치)
 def draft_yellow(g: Dict[str, Any], a: Dict[str, Any]) -> bool:
+    gy, ay = str(g.get("draft_year","") or ""), str(a.get("draft_year","") or "")
     gt, at = str(g.get("draft_type","") or ""), str(a.get("draft_type","") or "")
     gr, ar = str(g.get("draft_round","") or ""), str(a.get("draft_round","") or "")
-    if not gt or not at or not gr or not ar: return False
-    return (gt == at) and (gr == ar)
+    if not gy or not ay or not gt or not at or not gr or not ar:
+        return False
+    if (gy == ay) and (gt == at) and (gr == ar):
+        return draft_tuple(g) != draft_tuple(a)
+    return False
 
 def load_players(csv_path: str):
     players: List[Dict[str, Any]] = []
@@ -186,10 +190,9 @@ def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
     if gh is not None and ah is not None:
         if gh == ah:
             out["height_cm"] = "green"
-        elif abs(gh - ah) <= 3:
-            out["height_cm"] = "yellow"
         else:
-            out["height_cm"] = "black"
+            diff = abs(int(gh) - int(ah))
+            out["height_cm"] = "yellow" if (1 <= diff <= 3) else "black"
     else:
         out["height_cm"] = "black"
     # player_type (정규화 후 정확히 같을 때만 green)
@@ -297,6 +300,27 @@ def api__guess_debug():
         "answer_name": a.get("name",""),
         "answer_number_raw": a.get("number",""),
         "answer_number_int": an,
-        "abs_diff": diff,
+        "abs_diff_number": diff,
         "number_color": colors.get("number"),
+        # height debug
+        "guess_height_raw": g.get("height_cm",""),
+        "guess_height_int": _int_or_none(g.get("height_cm")),
+        "answer_height_raw": a.get("height_cm",""),
+        "answer_height_int": _int_or_none(a.get("height_cm")),
+        "abs_diff_height": (abs((_int_or_none(g.get("height_cm")) or 0) - (_int_or_none(a.get("height_cm")) or 0)) if (_int_or_none(g.get("height_cm")) is not None and _int_or_none(a.get("height_cm")) is not None) else None),
+        "height_color": colors.get("height_cm"),
+        # draft debug
+        "guess_draft": {
+            "year": g.get("draft_year",""),
+            "type": g.get("draft_type",""),
+            "round": g.get("draft_round",""),
+            "overall": g.get("draft_overall",""),
+        },
+        "answer_draft": {
+            "year": a.get("draft_year",""),
+            "type": a.get("draft_type",""),
+            "round": a.get("draft_round",""),
+            "overall": a.get("draft_overall",""),
+        },
+        "draft_color": colors.get("draft"),
     })
