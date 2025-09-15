@@ -162,31 +162,40 @@
         return b;
       };
 
-      let teamMap = null;
+      // 1) First, render from TEAM_COLORS (fallback) so UI is never empty
+      wrap.textContent = '';
+      if (!wrap.querySelector('button[data-key="KBL"]')) {
+        wrap.appendChild(makeBtn('KBL(전체)', 'KBL'));
+      }
+      Object.keys(TEAM_COLORS).filter(k=>k!=='KBL').sort().forEach(team => {
+        if (!wrap.querySelector(`button[data-key="${team}"]`)) {
+          wrap.appendChild(makeBtn(team, team));
+        }
+      });
+
+      // 2) Try to fetch canonical team list; merge in any that aren't present
       try {
         const res = await fetch('/api/teams');
-        if (res.ok) teamMap = await res.json();
-      } catch (e) { /* ignore network/API errors */ }
-
-      // Clear any placeholder
-      wrap.textContent = '';
-
-      // Always add KBL(전체)
-      wrap.appendChild(makeBtn('KBL(전체)', 'KBL'));
-
-      // Prefer API teams; fallback to TEAM_COLORS keys (excluding KBL)
-      let keys = [];
-      if (teamMap && Object.keys(teamMap).length) {
-        keys = Object.keys(teamMap);
-      } else {
-        keys = Object.keys(TEAM_COLORS).filter(k => k !== 'KBL');
+        if (res.ok) {
+          const teamMap = await res.json();
+          const keys = Object.keys(teamMap||{}).filter(k=>k && k !== 'KBL').sort();
+          keys.forEach(team => {
+            if (!wrap.querySelector(`button[data-key="${team}"]`)) {
+              wrap.appendChild(makeBtn(team, team));
+            }
+          });
+        }
+      } catch (e) {
+        // ignore; fallback already rendered
       }
-      keys.sort().forEach(team => wrap.appendChild(makeBtn(team, team)));
 
-      // Activate default & set initial color/title
-      const def = wrap.querySelector('button[data-key="KBL"]');
-      if (def) def.classList.add('active');
-      setTeam('KBL');
+      // 3) Activate default & set color/title if nothing active yet
+      let active = wrap.querySelector('button.active');
+      if (!active) {
+        const def = wrap.querySelector('button[data-key="KBL"]');
+        if (def) def.classList.add('active');
+        setTeam('KBL');
+      }
 
       await loadPlayersForCurrentMode();
     }
