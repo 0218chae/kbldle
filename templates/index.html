@@ -116,6 +116,15 @@
 
     let teamKey = 'KBL';
 
+    // session id for deterministic answer; persists per browser until restart
+    const SID_KEY = 'kbl_sid_v1';
+    function getSid(){
+      let v = localStorage.getItem(SID_KEY);
+      if (!v){ v = String(Date.now()); localStorage.setItem(SID_KEY, v); }
+      return v;
+    }
+    function resetSid(){ localStorage.setItem(SID_KEY, String(Date.now())); }
+
     const TEAM_COLORS = {
       'KBL': '#eeeeee', // 전체 모드 연한 회색
       '창원 LG 세이커스': '#8a0332',
@@ -240,7 +249,7 @@
 
     async function revealAnswer() {
       try {
-        const r = await fetch('/api/answer?team=' + encodeURIComponent(currentTeam()));
+        const r = await fetch('/api/answer?team=' + encodeURIComponent(currentTeam()) + '&sid=' + encodeURIComponent(getSid()));
         if (!r.ok) return;
         const a = await r.json();
         alert(
@@ -274,7 +283,7 @@
       }
       const r = await fetch('/api/guess',{
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ name: pureName, team_filter: currentTeam(), team_of_guess: teamOfGuess })
+        body: JSON.stringify({ name: pureName, team_filter: currentTeam(), team_of_guess: teamOfGuess, sid: getSid() })
       });
       if (!r.ok) { alert("선수를 찾을 수 없습니다"); return; }
       const res = await r.json();
@@ -302,7 +311,6 @@
       if (res.is_correct) { tr.classList.add('correct'); }
       document.querySelector('#guesses tbody').appendChild(tr);
       
-      // 입력창/프리뷰 초기화
       // 입력창/프리뷰 초기화
       const nameInput = document.getElementById('name');
       nameInput.value = '';
@@ -349,27 +357,30 @@
       modal.addEventListener('click', (e)=>{ if (e.target === modal) closeHelp(); });
       document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeHelp(); });
       async function restartGame(){
-  try {
-    const r = await fetch('/api/restart', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ team: currentTeam() })
-    });
-    if (!r.ok) { alert('리셋 실패'); return; }
+        try {
+          const r = await fetch('/api/restart', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ team: currentTeam() })
+          });
+          if (!r.ok) { alert('리셋 실패'); return; }
 
-    // UI 리셋
-    document.querySelector('#guesses tbody').innerHTML = '';
-    document.getElementById('preview').innerHTML = '';
-    const input = document.getElementById('name');
-    input.value = ''; input.focus();
+          // Reset session id for deterministic answer
+          resetSid();
 
-    await loadPlayersForCurrentMode();
-    hideRestartButton();
-    document.getElementById('reveal').style.display = 'none';
-  } catch(e) {
-    alert('리셋 실패');
-  }
-}
-document.getElementById('restart').addEventListener('click', restartGame);
+          // UI 리셋
+          document.querySelector('#guesses tbody').innerHTML = '';
+          document.getElementById('preview').innerHTML = '';
+          const input = document.getElementById('name');
+          input.value = ''; input.focus();
+
+          await loadPlayersForCurrentMode();
+          hideRestartButton();
+          document.getElementById('reveal').style.display = 'none';
+        } catch(e) {
+          alert('리셋 실패');
+        }
+      }
+      document.getElementById('restart').addEventListener('click', restartGame);
     });
   </script>
 

@@ -28,9 +28,11 @@ def filter_players_by_team(team_key: Optional[str]) -> List[Dict[str, Any]]:
 def kst_today_str() -> str:
     return (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).strftime('%Y-%m-%d')
 
-def daily_answer_index(n: int, salt: str = 'kbltle') -> int:
+from typing import Optional
+def daily_answer_index(n: int, salt: str = 'kbltle', date_str: Optional[str] = None) -> int:
     import hashlib
-    h = hashlib.sha256(f"{salt}:{kst_today_str()}".encode('utf-8')).hexdigest()
+    d = date_str or kst_today_str()
+    h = hashlib.sha256(f"{salt}:{d}".encode('utf-8')).hexdigest()
     return int(h, 16) % max(1, n)
 
 # --- 경로 설정 (api/ 기준으로 상위 폴더의 자원 접근) ---
@@ -113,14 +115,14 @@ for i, p in enumerate(PLAYERS):
     NAME2INDICES[p.get("name","")].append(i)
     NORMNAME2INDICES[normalize_name(p.get("name",""))].append(i)
 
-def answer_player(team_key: Optional[str] = None) -> Dict[str, Any]:
+def answer_player(team_key: Optional[str] = None, sid: Optional[str] = None) -> Dict[str, Any]:
     pool = filter_players_by_team(team_key)
     if not pool:
         return {}
-    cache_key = normalize_team_key(team_key) or 'ALL'
-    if cache_key not in CURRENT_ANSWER_IDX:
-        CURRENT_ANSWER_IDX[cache_key] = random.randrange(len(pool))
-    return pool[CURRENT_ANSWER_IDX[cache_key]]
+    key = normalize_team_key(team_key) or 'ALL'
+    salt = f"{sid or 'default'}:{key}"
+    idx = daily_answer_index(len(pool), salt=salt)
+    return pool[idx]
 
 @app.route("/")
 def index():
@@ -137,13 +139,6 @@ def index():
 
 @app.route("/api/restart", methods=["POST"])
 def api_restart():
-    payload = request.get_json(silent=True) or {}
-    team_key = (payload.get("team") or "").strip()
-    nk = normalize_team_key(team_key)
-    pool = filter_players_by_team(team_key)
-    if not pool:
-        return jsonify({"error": "no players"}), 400
-    CURRENT_ANSWER_IDX[nk] = random.randrange(len(pool))
     return jsonify({"ok": True})
 
 @app.route("/api/status")
@@ -307,6 +302,7 @@ def api_guess():
     raw = (data.get("name") or "").strip()
     team_filter = (data.get("team_filter") or "").strip()
     team_of_guess = (data.get("team_of_guess") or "").strip()
+    sid = (data.get("sid") or "").strip() or None
 
     # 표준화된 팀 키(별칭 포함)로 정규화
     team_filter_norm = normalize_team_key(team_filter)
@@ -337,7 +333,7 @@ def api_guess():
         return jsonify({"error":"등록되지 않은 선수입니다."}), 400
 
     g = PLAYERS[idx]
-    a = answer_player(team_filter)
+    a = answer_player(team_filter, sid=sid)
 
     colors = compare_fields(g,a)
     return jsonify({
@@ -400,7 +396,8 @@ def api_player_info():
 
 @app.route("/api/_answer")
 def api__answer():
-    a = answer_player(request.args.get("team"))
+    sid = (request.args.get("sid") or "").strip() or None
+    a = answer_player(request.args.get("team"), sid=sid)
     return jsonify({
         "name": a.get("name",""),
         "team": a.get("team",""),
@@ -417,7 +414,8 @@ def api__answer():
 @app.route("/api/answer")
 def api_answer_public():
     team_key = (request.args.get("team") or "").strip()
-    a = answer_player(team_key)
+    sid = (request.args.get("sid") or "").strip() or None
+    a = answer_player(team_key, sid=sid)
     return jsonify({
         "name": a.get("name",""),
         "team_value": a.get("team",""),
@@ -434,11 +432,12 @@ def api_answer_public():
 def api__guess_debug():
     name = (request.args.get("name") or "").strip()
     team_filter = (request.args.get("team") or "").strip()
+    sid = (request.args.get("sid") or "").strip() or None
     idx = NAME2IDX.get(name) or NORMNAME2IDX.get(normalize_name(name))
     if idx is None:
         return jsonify({"error": "unknown player"}), 400
     g = PLAYERS[idx]
-    a = answer_player(team_filter)
+    a = answer_player(team_filter, sid=sid)
     gn = _int_or_none(g.get("number"))
     an = _int_or_none(a.get("number"))
     diff = (abs(gn - an) if gn is not None and an is not None else None)
