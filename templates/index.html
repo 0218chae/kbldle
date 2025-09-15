@@ -280,14 +280,14 @@
         if (o.value === name){ teamOfGuess = o.dataset.team || ''; pureName = o.dataset.name || pureName; break; }
       }
       if (!teamOfGuess){
-        const m = name.match(/^(.*?)\\s*\\((.*?),(.*?)\\)$/);
+        const m = name.match(/^(.*?)\s*\((.*?),(.*?)\)$/);
         if (m){ pureName = m[1].trim(); teamOfGuess = (m[2]||'').trim(); }
       }
       const r = await fetch('/api/guess',{
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ name: pureName, team_filter: currentTeam(), team_of_guess: teamOfGuess })
       });
-      if (!r.ok) { alert(\"선수를 찾을 수 없습니다\"); return; }
+      if (!r.ok) { alert("선수를 찾을 수 없습니다"); return; }
       const res = await r.json();
 
       const tr = document.createElement('tr');
@@ -309,7 +309,7 @@
       remaining--;
       updateRemainUI();
       if (res.is_correct) {
-        alert(\"정답!\");
+        alert("정답!");
         remaining = 0;
         updateRemainUI();
       } else if (remaining === 0) {
@@ -357,9 +357,9 @@
             <ul>
               <li><b>팀</b>: 동일</li>
               <li><b>등번호</b>: 동일</li>
-              <li><b>포지션</b>: 코드집합 동일 (예: G=가드, F=포워드, C=센터 / GF는 가드+포워드)</li>
+              <li><b>포지션</b>: G, F, C 동일</li>
               <li><b>키</b>: 정확히 동일</li>
-              <li><b>선수구분</b>: 동일 (국내/외국/귀화)</li>
+              <li><b>선수구분</b>: 국내, 외국, 아시아쿼터 동일</li>
               <li><b>드래프트</b>: <u>같은 년도</u> + <u>같은 라운드</u> (전체순번/타입은 무시)</li>
             </ul>
           </div>
@@ -367,7 +367,7 @@
           <div>
             <ul>
               <li><b>등번호</b>: 차이가 ±2</li>
-              <li><b>포지션</b>: 코드 교집합 존재 (예: G vs GF)</li>
+              <li><b>포지션</b>: x</li>
               <li><b>키</b>: 차이가 ±3cm</li>
               <li><b>드래프트</b>: <u>다른 년도</u> + <u>같은 라운드</u></li>
             </ul>

@@ -168,6 +168,7 @@ def _ptype_norm(x: Any) -> str:
     table = {
         "국내": "국내", "국내선수": "국내",
         "외국": "외국", "외국선수": "외국", "외국인": "외국",
+        "아시아": "아시아쿼터", "아시아쿼터": "아시아쿼터", "아시아쿼터선수": "아시아쿼터",
         "귀화": "귀화", "귀화선수": "귀화",
     }
     return table.get(s, s)
@@ -237,13 +238,11 @@ def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
             out["number"] = "black"
     else:
         out["number"] = "black"
-    # position (정확히 같으면 green, 글자 집합 교집합 있으면 yellow)
+    # position (동일할 때만 green, 그 외는 black)
     gp_raw, ap_raw = (guess.get("position","") or ""), (ans.get("position","") or "")
     gc, ac = pos_codes(gp_raw), pos_codes(ap_raw)
     if gc and ac and gc == ac:
         out["position"] = "green"
-    elif gc and ac and (set(gc) & set(ac)):
-        out["position"] = "yellow"
     else:
         out["position"] = "black"
     # height (그린: 동일, 옐로우: ±3cm)
