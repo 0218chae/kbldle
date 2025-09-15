@@ -323,7 +323,9 @@
       inputEl.addEventListener('change', ()=> loadPreviewFor(inputEl.value.trim()));
       inputEl.addEventListener('input', ()=> {
         const v = inputEl.value.trim();
-        if (nameSet.has(v)) { loadPreviewFor(v); }
+        const m = v.match(/^(.*?)\s*\((.*?),(.*?)\)$/);
+        const base = m ? m[1].trim() : v;
+        if (nameSet.has(base)) { loadPreviewFor(v); }
         else { document.getElementById('preview').innerHTML = ''; }
       });
       document.getElementById('submit').addEventListener('click', submitGuess);
@@ -340,7 +342,6 @@
       document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeHelp(); });
     });
   </script>
-</script>
 
   <div id="helpModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
     <div class="modal">
