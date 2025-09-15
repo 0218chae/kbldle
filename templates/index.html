@@ -41,6 +41,19 @@
     .teams button.active { background: var(--ok-color); color: var(--ok-fg); border-color: var(--ok-color); }
     .teams:empty::after { content: '모드 불러오는 중...'; color:#888; font-size:13px; }
 
+    /* 도움말 버튼 & 모달 */
+    .help-btn { position: fixed; top: 12px; right: 12px; width: 36px; height: 36px; border-radius: 50%; border: 1px solid #ddd; background:#fff; cursor: pointer; font-weight:700; }
+    .help-btn:hover { background:#f6f6f6; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display:none; align-items: center; justify-content: center; padding: 16px; z-index: 1000; }
+    .modal { max-width: 560px; width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.18); overflow: hidden; }
+    .modal header { padding: 14px 16px; border-bottom: 1px solid #eee; font-weight: 700; display:flex; align-items:center; justify-content:space-between; }
+    .modal header .x { border:none; background:transparent; font-size:18px; line-height:1; cursor:pointer; }
+    .modal .content { padding: 14px 16px; font-size:14px; }
+    .legend { display:grid; grid-template-columns: 90px 1fr; gap: 8px 12px; align-items:center; }
+    .chip { display:inline-block; min-width:70px; text-align:center; padding:6px 8px; border-radius:8px; border:1px solid #e5e5e5; }
+    .chip.green { background: var(--ok-color); color: var(--ok-fg); border-color: var(--ok-color); }
+    .chip.yellow { background:#f1c40f; color:#000; border-color:#e0b90d; }
+    .chip.black { background:#2c3e50; color:#fff; border-color:#2c3e50; }
     @media (max-width: 640px) {
       body { margin: 12px; }
       h1 { font-size: 20px; }
@@ -51,6 +64,7 @@
   </style>
 </head>
 <body>
+  <button id="helpBtn" class="help-btn" aria-label="도움말">?</button>
   <h1><span id="titleTeam">KBL</span> 크블들</h1>
   <div class="teams" id="teamButtons"></div>
 
@@ -314,7 +328,64 @@
       });
       document.getElementById('submit').addEventListener('click', submitGuess);
       document.getElementById('reveal').addEventListener('click', revealAnswer);
+
+      const modal = document.getElementById('helpModal');
+      const openBtn = document.getElementById('helpBtn');
+      const closeBtn = document.getElementById('helpClose');
+      function openHelp(){ modal.style.display = 'flex'; }
+      function closeHelp(){ modal.style.display = 'none'; }
+      openBtn.addEventListener('click', openHelp);
+      closeBtn.addEventListener('click', closeHelp);
+      modal.addEventListener('click', (e)=>{ if (e.target === modal) closeHelp(); });
+      document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeHelp(); });
     });
   </script>
+</script>
+
+  <div id="helpModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="modal">
+      <header>
+        <span id="helpTitle">게임 방법</span>
+        <button class="x" id="helpClose" aria-label="닫기">×</button>
+      </header>
+      <div class="content">
+        <p>각 칸의 배경색은 정답과의 <b>일치 정도</b>를 의미해요.</p>
+        <div class="legend">
+          <span class="chip green">초록</span>
+          <div>
+            <ul>
+              <li><b>팀</b>: 동일</li>
+              <li><b>등번호</b>: 동일</li>
+              <li><b>포지션</b>: 코드집합 동일 (예: G=가드, F=포워드, C=센터 / GF는 가드+포워드)</li>
+              <li><b>키</b>: 정확히 동일</li>
+              <li><b>선수구분</b>: 동일 (국내/외국/귀화)</li>
+              <li><b>드래프트</b>: <u>같은 년도</u> + <u>같은 라운드</u> (전체순번/타입은 무시)</li>
+            </ul>
+          </div>
+          <span class="chip yellow">노랑</span>
+          <div>
+            <ul>
+              <li><b>등번호</b>: 차이가 ±2</li>
+              <li><b>포지션</b>: 코드 교집합 존재 (예: G vs GF)</li>
+              <li><b>키</b>: 차이가 ±3cm</li>
+              <li><b>드래프트</b>: <u>다른 년도</u> + <u>같은 라운드</u></li>
+            </ul>
+          </div>
+          <span class="chip black">검정</span>
+          <div>
+            <ul>
+              <li>위 조건에 해당하지 않음 (예: 라운드 다름, 포지션 교집합 없음 등)</li>
+            </ul>
+          </div>
+        </div>
+        <hr style="margin:12px 0; border:none; border-top:1px solid #eee;" />
+        <p>
+          • 상단에서 <b>모드(팀)</b>를 고르면 해당 팀 선수만 후보/정답으로 등장해요.<br/>
+          • <b>KBL(전체)</b> 모드는 기회가 <b>19번</b>, 팀 모드는 <b>9번</b>이에요.<br/>
+          • 입력창 자동완성은 <b>이름 (팀, 번호)</b> 형식으로 동명이인을 구분해요.
+        </p>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
