@@ -51,7 +51,7 @@
     .modal .content { padding: 14px 16px; font-size:14px; }
     .legend { display:grid; grid-template-columns: 90px 1fr; gap: 8px 12px; align-items:center; }
     .chip { display:inline-block; min-width:70px; text-align:center; padding:6px 8px; border-radius:8px; border:1px solid #e5e5e5; }
-    .chip.green { background: var(--ok-color); color: var(--ok-fg); border-color: var(--ok-color); }
+    .chip.green { background:#2ecc71; color:#fff; border-color:#27ae60; }
     .chip.yellow { background:#f1c40f; color:#000; border-color:#e0b90d; }
     .chip.black { background:#2c3e50; color:#fff; border-color:#2c3e50; }
     @media (max-width: 640px) {
@@ -106,7 +106,7 @@
     let teamKey = 'KBL';
 
     const TEAM_COLORS = {
-      'KBL': '#2ecc71',
+      'KBL': '#ffffff', // 전체 모드 화이트
       '창원 LG 세이커스': '#8a0332',
       '서울 SK 나이츠': '#e4002b',
       '울산 현대모비스 피버스': '#d90429',
@@ -127,7 +127,7 @@
       const yiq = ((r*299)+(g*587)+(b*114))/1000;
       const fg = yiq >= 128 ? '#000000' : '#ffffff';
       el.style.setProperty('--ok-color', h);
-      el.style.setProperty('--ok-fg', fg);
+      el.style.setProperty('--ok-fg', h.toLowerCase()==='#ffffff' ? '#000000' : fg);
     }
 
     function currentTeam(){ return teamKey; }
@@ -176,42 +176,17 @@
         return b;
       };
 
-      // 1) First, render from TEAM_COLORS (fallback) so UI is never empty
+      // Render buttons only from TEAM_COLORS keys
       wrap.textContent = '';
-      if (!wrap.querySelector('button[data-key="KBL"]')) {
-        wrap.appendChild(makeBtn('KBL(전체)', 'KBL'));
-      }
-      Object.keys(TEAM_COLORS).filter(k=>k!=='KBL').sort().forEach(team => {
-        if (!wrap.querySelector(`button[data-key="${team}"]`)) {
-          wrap.appendChild(makeBtn(team, team));
-        }
-      });
-
-      // 2) Try to fetch canonical team list; merge in any that aren't present
-      try {
-        const res = await fetch('/api/teams');
-        if (res.ok) {
-          const teamMap = await res.json();
-          const keys = Object.keys(teamMap||{}).filter(k=>k && k !== 'KBL').sort();
-          keys.forEach(team => {
-            if (!wrap.querySelector(`button[data-key="${team}"]`)) {
-              wrap.appendChild(makeBtn(team, team));
-            }
-          });
-        }
-      } catch (e) {
-        // ignore; fallback already rendered
-      }
-
-      // 3) Activate default & set color/title if nothing active yet
-      let active = wrap.querySelector('button.active');
-      if (!active) {
-        const def = wrap.querySelector('button[data-key="KBL"]');
-        if (def) def.classList.add('active');
-        setTeam('KBL');
-      }
-
-      await loadPlayersForCurrentMode();
+      wrap.appendChild(makeBtn('KBL(전체)', 'KBL'));
+      Object.keys(TEAM_COLORS)
+        .filter(k => k !== 'KBL' && TEAM_COLORS[k])
+        .sort()
+        .forEach(team => wrap.appendChild(makeBtn(team, team)));
+      const def = wrap.querySelector('button[data-key="KBL"]');
+      if (def) def.classList.add('active');
+      setTeam('KBL');
+      try { await loadPlayersForCurrentMode(); } catch(e) {}
     }
 
     async function loadPreviewFor(name) {
@@ -320,7 +295,10 @@
     document.addEventListener('DOMContentLoaded', ()=>{
       init();
       const inputEl = document.getElementById('name');
-      inputEl.addEventListener('change', ()=> loadPreviewFor(inputEl.value.trim()));
+      inputEl.addEventListener('change', ()=>{
+        const v = inputEl.value.trim();
+        loadPreviewFor(v);
+      });
       inputEl.addEventListener('input', ()=> {
         const v = inputEl.value.trim();
         const m = v.match(/^(.*?)\s*\((.*?),(.*?)\)$/);
