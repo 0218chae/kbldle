@@ -64,7 +64,7 @@
   </style>
 </head>
 <body>
-  <button id="helpBtn" class="help-btn" aria-label="도움말">?</button>
+  <button id="helpBtn" class="help-btn" aria-label="도움말" onclick="document.getElementById('helpModal').style.display='flex'">?</button>
   <h1><span id="titleTeam">KBL</span> 크블들</h1>
   <div class="teams" id="teamButtons"></div>
 
@@ -347,7 +347,7 @@
     <div class="modal">
       <header>
         <span id="helpTitle">게임 방법</span>
-        <button class="x" id="helpClose" aria-label="닫기">×</button>
+        <button class="x" id="helpClose" aria-label="닫기" onclick="document.getElementById('helpModal').style.display='none'">×</button>
       </header>
       <div class="content">
         <p>각 칸의 배경색은 정답과의 <b>일치 정도</b>를 의미해요.</p>
