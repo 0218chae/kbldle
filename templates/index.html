@@ -39,6 +39,7 @@
     .teams { display:flex; flex-wrap:wrap; gap:8px; margin: 6px 0 12px; }
     .teams button { padding:6px 10px; border:1px solid #ddd; border-radius:20px; background:#fff; cursor:pointer; font-size: 13px; }
     .teams button.active { background: var(--ok-color); color: var(--ok-fg); border-color: var(--ok-color); }
+    .teams:empty::after { content: '모드 불러오는 중...'; color:#888; font-size:13px; }
 
     @media (max-width: 640px) {
       body { margin: 12px; }
@@ -147,28 +148,46 @@
     }
 
     async function init() {
-      try {
-        const t = await (await fetch('/api/teams')).json();
-        const wrap = document.getElementById('teamButtons');
-        const makeBtn = (label, key) => {
-          const b = document.createElement('button');
-          b.type = 'button'; b.textContent = label; b.dataset.key = key;
-          b.addEventListener('click', async ()=>{
-            document.querySelectorAll('#teamButtons button').forEach(x=>x.classList.remove('active'));
-            b.classList.add('active');
-            setTeam(key);
-            await loadPlayersForCurrentMode();
-            document.querySelector('#guesses tbody').innerHTML = '';
-          });
-          return b;
-        };
-        wrap.appendChild(makeBtn('KBL(전체)', 'KBL'));
-        Object.keys(t).sort().forEach(team => {
-          wrap.appendChild(makeBtn(team, team));
+      const wrap = document.getElementById('teamButtons');
+      const makeBtn = (label, key) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.textContent = label; b.dataset.key = key;
+        b.addEventListener('click', async ()=>{
+          document.querySelectorAll('#teamButtons button').forEach(x=>x.classList.remove('active'));
+          b.classList.add('active');
+          setTeam(key);
+          await loadPlayersForCurrentMode();
+          document.querySelector('#guesses tbody').innerHTML = '';
         });
-        wrap.querySelector('button[data-key="KBL"]').classList.add('active');
-        setTeam('KBL');
-      } catch(e) {}
+        return b;
+      };
+
+      let teamMap = null;
+      try {
+        const res = await fetch('/api/teams');
+        if (res.ok) teamMap = await res.json();
+      } catch (e) { /* ignore network/API errors */ }
+
+      // Clear any placeholder
+      wrap.textContent = '';
+
+      // Always add KBL(전체)
+      wrap.appendChild(makeBtn('KBL(전체)', 'KBL'));
+
+      // Prefer API teams; fallback to TEAM_COLORS keys (excluding KBL)
+      let keys = [];
+      if (teamMap && Object.keys(teamMap).length) {
+        keys = Object.keys(teamMap);
+      } else {
+        keys = Object.keys(TEAM_COLORS).filter(k => k !== 'KBL');
+      }
+      keys.sort().forEach(team => wrap.appendChild(makeBtn(team, team)));
+
+      // Activate default & set initial color/title
+      const def = wrap.querySelector('button[data-key="KBL"]');
+      if (def) def.classList.add('active');
+      setTeam('KBL');
+
       await loadPlayersForCurrentMode();
     }
 
