@@ -2,11 +2,11 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <title>크블틀(KBL)</title>
+  <title>크블들(KBL)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/style.css">
   <style>
-    :root { --gap: 12px; }
+    :root { --gap: 12px; --ok-color: #2ecc71; --ok-fg: #ffffff; }
     body { font-family: -apple-system, system-ui, sans-serif; margin: 20px; }
     h1 { font-size: 24px; margin-bottom: 10px; }
     .guess-box { display:flex; gap: var(--gap); align-items:center; margin-bottom: 12px; }
@@ -23,7 +23,7 @@
     thead th { background: #fafafa; position: sticky; top: 0; }
     td.cell { transition: background .15s ease; }
     /* 색상 클래스는 표의 데이터 셀(td.cell)에만 적용 */
-    td.cell.green { background:#2ecc71; color:#fff; }
+    td.cell.green { background: var(--ok-color); color: var(--ok-fg); }
     td.cell.yellow { background:#f1c40f; color:#000; }
     td.cell.black { background:#2c3e50; color:#fff; }
     /* 이름 칸은 항상 흰색 */
@@ -38,7 +38,7 @@
 
     .teams { display:flex; flex-wrap:wrap; gap:8px; margin: 6px 0 12px; }
     .teams button { padding:6px 10px; border:1px solid #ddd; border-radius:20px; background:#fff; cursor:pointer; font-size: 13px; }
-    .teams button.active { background:#2ecc71; color:#fff; border-color:#2ecc71; }
+    .teams button.active { background: var(--ok-color); color: var(--ok-fg); border-color: var(--ok-color); }
 
     @media (max-width: 640px) {
       body { margin: 12px; }
@@ -50,7 +50,7 @@
   </style>
 </head>
 <body>
-  <h1><span id="titleTeam">KBL</span> 크블틀</h1>
+  <h1><span id="titleTeam">KBL</span> 크블들</h1>
   <div class="teams" id="teamButtons"></div>
 
   <div class="guess-box">
@@ -89,8 +89,38 @@
     let nameSet = new Set();
 
     let teamKey = 'KBL';
+
+    const TEAM_COLORS = {
+      'KBL': '#2ecc71',
+      '창원 LG 세이커스': '#8a0332',
+      '서울 SK 나이츠': '#e4002b',
+      '울산 현대모비스 피버스': '#d90429',
+      '수원 KT 소닉붐': '#111111',
+      '대구 한국가스공사 페가수스': '#4b4bbd',
+      '안양 정관장 레드부스터스': '#d0021b',
+      '원주 DB 프로미': '#087f5b',
+      '고양 소노 스카이거너스': '#7aaed6',
+      '부산 KCC 이지스': '#0a1f62',
+      '서울 삼성': '#0f3b97'
+    };
+    function setOkColor(hex){
+      const el = document.documentElement;
+      let h = String(hex||'').trim();
+      if (!/^#?[0-9a-fA-F]{6}$/.test(h)) { h = '#2ecc71'; }
+      if (h[0] !== '#') h = '#'+h;
+      const r = parseInt(h.substr(1,2),16), g = parseInt(h.substr(3,2),16), b = parseInt(h.substr(5,2),16);
+      const yiq = ((r*299)+(g*587)+(b*114))/1000;
+      const fg = yiq >= 128 ? '#000000' : '#ffffff';
+      el.style.setProperty('--ok-color', h);
+      el.style.setProperty('--ok-fg', fg);
+    }
+
     function currentTeam(){ return teamKey; }
-    function setTeam(newKey){ teamKey = newKey || 'KBL'; document.getElementById('titleTeam').textContent = (teamKey==='KBL'?'KBL':teamKey); }
+    function setTeam(newKey){
+      teamKey = newKey || 'KBL';
+      document.getElementById('titleTeam').textContent = (teamKey==='KBL'?'KBL':teamKey);
+      setOkColor(TEAM_COLORS[teamKey] || TEAM_COLORS['KBL']);
+    }
 
     async function loadPlayersForCurrentMode(){
       const team = currentTeam();
@@ -107,8 +137,8 @@
       list.forEach(p => {
         const opt = document.createElement('option');
         const label = `${p.name} (${p.team}, ${p.number||'-'})`;
-        opt.value = label;                // 한 줄로 입력창에도 그대로 보이게
-        opt.textContent = label;          // 목록도 동일 표기
+        opt.value = label;
+        opt.textContent = label;
         opt.dataset.team = p.team || '';
         opt.dataset.name = p.name || '';
         opt.dataset.number = p.number || '';
@@ -124,7 +154,6 @@
           const b = document.createElement('button');
           b.type = 'button'; b.textContent = label; b.dataset.key = key;
           b.addEventListener('click', async ()=>{
-            // activate button
             document.querySelectorAll('#teamButtons button').forEach(x=>x.classList.remove('active'));
             b.classList.add('active');
             setTeam(key);
@@ -133,22 +162,17 @@
           });
           return b;
         };
-        // KBL(전체) 버튼 먼저
         wrap.appendChild(makeBtn('KBL(전체)', 'KBL'));
-        // 팀 버튼들 추가 (정렬)
         Object.keys(t).sort().forEach(team => {
           wrap.appendChild(makeBtn(team, team));
         });
-        // 기본 활성 버튼
         wrap.querySelector('button[data-key="KBL"]').classList.add('active');
         setTeam('KBL');
       } catch(e) {}
-
       await loadPlayersForCurrentMode();
     }
 
     async function loadPreviewFor(name) {
-      // allow "이름 (팀, 번호)" format
       const m = name.match(/^(.*?)\s*\((.*?),(.*?)\)$/);
       const previewName = m ? m[1].trim() : name;
       name = previewName;
@@ -163,13 +187,13 @@
                        (p.draft_overall ? (p.draft_overall) : '');
       document.getElementById('preview').innerHTML = `
         <h3>${p.name}</h3>
-        <div class="row">
-          <span class="tag">팀: ${p.team||'-'}</span>
-          <span class="tag">등번호: ${p.number||'-'}</span>
-          <span class="tag">포지션: ${p.position||'-'}</span>
-          <span class="tag">키: ${p.height_cm? (p.height_cm+'cm') : '-'}</span>
-          <span class="tag">선수구분: ${p.player_type||'-'}</span>
-          <span class="tag">드래프트: ${draftStr||'-'}</span>
+        <div class=\"row\">
+          <span class=\"tag\">팀: ${p.team||'-'}</span>
+          <span class=\"tag\">등번호: ${p.number||'-'}</span>
+          <span class=\"tag\">포지션: ${p.position||'-'}</span>
+          <span class=\"tag\">키: ${p.height_cm? (p.height_cm+'cm') : '-'}</span>
+          <span class=\"tag\">선수구분: ${p.player_type||'-'}</span>
+          <span class=\"tag\">드래프트: ${draftStr||'-'}</span>
         </div>`;
     }
 
@@ -191,12 +215,12 @@
         if (!r.ok) return;
         const a = await r.json();
         alert(
-          `정답: ${a.name}\n` +
-          `팀: ${a.team_value}\n` +
-          `번호: ${a.number_value}\n` +
-          `포지션: ${a.position_value}\n` +
-          `키: ${a.height_cm_value}\n` +
-          `선수구분: ${a.player_type_value}\n` +
+          `정답: ${a.name}\\n` +
+          `팀: ${a.team_value}\\n` +
+          `번호: ${a.number_value}\\n` +
+          `포지션: ${a.position_value}\\n` +
+          `키: ${a.height_cm_value}\\n` +
+          `선수구분: ${a.player_type_value}\\n` +
           `드래프트: ${a.draft_value || '-'}`
         );
       } catch(e) {}
@@ -207,29 +231,27 @@
       const name = document.getElementById('name').value.trim();
       if (!name) return;
 
-      // try to resolve by exact option match
       let teamOfGuess = '';
       let pureName = name;
       const opts = document.querySelectorAll('#players option');
       for (const o of opts){
         if (o.value === name){ teamOfGuess = o.dataset.team || ''; pureName = o.dataset.name || pureName; break; }
       }
-      // fallback: parse "이름 (팀, 번호)" directly
       if (!teamOfGuess){
-        const m = name.match(/^(.*?)\s*\((.*?),(.*?)\)$/);
+        const m = name.match(/^(.*?)\\s*\\((.*?),(.*?)\\)$/);
         if (m){ pureName = m[1].trim(); teamOfGuess = (m[2]||'').trim(); }
       }
       const r = await fetch('/api/guess',{
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ name: pureName, team_filter: currentTeam(), team_of_guess: teamOfGuess })
       });
-      if (!r.ok) { alert("선수를 찾을 수 없습니다"); return; }
+      if (!r.ok) { alert(\"선수를 찾을 수 없습니다\"); return; }
       const res = await r.json();
 
       const tr = document.createElement('tr');
       const tdName = document.createElement('td');
       tdName.className = '';
-      tdName.classList.add('name'); // 이름 칸은 절대 색 클래스 붙이지 않음
+      tdName.classList.add('name');
       tdName.textContent = res.name;
       tdName.style.background = '#fff';
       tdName.style.color = '#000';
@@ -245,7 +267,7 @@
       remaining--;
       updateRemainUI();
       if (res.is_correct) {
-        alert("정답!");
+        alert(\"정답!\");
         remaining = 0;
         updateRemainUI();
       } else if (remaining === 0) {
