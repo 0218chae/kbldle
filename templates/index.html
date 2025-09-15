@@ -277,14 +277,45 @@
       tdName.style.background = '#fff';
       tdName.style.color = '#000';
       tr.appendChild(tdName);
-      tr.appendChild(makeCell(res.team_value, res.team));
-      tr.appendChild(makeCell(res.number_value, res.number));
-      tr.appendChild(makeCell(res.position_value, res.position));
-      tr.appendChild(makeCell(res.height_cm_value, res.height_cm));
-      tr.appendChild(makeCell(res.player_type_value, res.player_type));
-      tr.appendChild(makeCell(res.draft_value, res.draft));
+      const tdTeam = makeCell(res.team_value, res.team);
+      const tdNum = makeCell(res.number_value, res.number);
+      const tdPos = makeCell(res.position_value, res.position);
+      const tdHgt = makeCell(res.height_cm_value, res.height_cm);
+      const tdType = makeCell(res.player_type_value, res.player_type);
+      const tdDrf = makeCell(res.draft_value, res.draft);
+      tr.appendChild(tdTeam);
+      tr.appendChild(tdNum);
+      tr.appendChild(tdPos);
+      tr.appendChild(tdHgt);
+      tr.appendChild(tdType);
+      tr.appendChild(tdDrf);
       if (res.is_correct) { tr.classList.add('correct'); }
       document.querySelector('#guesses tbody').appendChild(tr);
+      
+      // 정답 정보 가져와서 툴팁으로 이유 표시
+      try {
+        const a = await (await fetch('/api/answer?team=' + encodeURIComponent(currentTeam()))).json();
+        // 번호: 차이 계산
+        const gNum = parseInt((res.number_value||'').toString().replace(/[^0-9-]/g,''), 10);
+        const aNum = parseInt((a.number_value||'').toString().replace(/[^0-9-]/g,''), 10);
+        if (!Number.isNaN(gNum) && !Number.isNaN(aNum)) {
+          if (gNum === aNum) tdNum.title = `등번호 동일 (${gNum})`;
+          else tdNum.title = `등번호 차이 ${Math.abs(gNum-aNum)} (정답 ${aNum})`;
+        }
+        // 포지션: 그대로 표시
+        tdPos.title = `정답 포지션: ${a.position_value}`;
+        // 키: 차이 계산
+        const gH = parseInt((res.height_cm_value||'').toString().replace(/[^0-9-]/g,''),10);
+        const aH = parseInt((a.height_cm_value||'').toString().replace(/[^0-9-]/g,''),10);
+        if (!Number.isNaN(gH) && !Number.isNaN(aH)) {
+          if (gH === aH) tdHgt.title = `키 동일 (${gH}cm)`;
+          else tdHgt.title = `키 차이 ${Math.abs(gH-aH)}cm (정답 ${aH}cm)`;
+        }
+        // 드래프트: 라운드/연도 기준 설명
+        const yr = (a.draft_year||'').toString();
+        const rd = (a.draft_round||'').toString();
+        tdDrf.title = yr||rd ? `정답 드래프트: ${yr?yr+' ':''}${rd?rd+'R':''}` : '정답 드래프트: -';
+      } catch(e) {}
       // 입력창/프리뷰 초기화
       const nameInput = document.getElementById('name');
       nameInput.value = '';

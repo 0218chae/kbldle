@@ -401,6 +401,8 @@ def api_answer_public():
         "height_cm_value": (str(_int_or_none(a.get("height_cm"))) + "cm" if _int_or_none(a.get("height_cm")) is not None else str(a.get("height_cm",""))),
         "player_type_value": a.get("player_type",""),
         "draft_value": _fmt_draft(a),
+        "draft_year": a.get("draft_year",""),
+        "draft_round": a.get("draft_round",""),
     })
 
 @app.route("/api/_guess_debug")
