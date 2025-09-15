@@ -271,18 +271,11 @@ def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
             out["number"] = "black"
     else:
         out["number"] = "black"
-    # position: G/F/C 동일 그룹이면 green (노랑 없음)
-    def _has(code: str, s: Any) -> bool:
-        t = unicodedata.normalize("NFKC", str(s or "")).upper()
-        if code == 'G':
-            return ('G' in t) or ('가드' in t)
-        if code == 'F':
-            return ('F' in t) or ('포워드' in t)
-        if code == 'C':
-            return ('C' in t) or ('센터' in t)
-        return False
+    # position: G/F/C 교집합이 있으면 green (노랑 없음). 한글 표기도 포함하여 정규화
     gp_raw, ap_raw = (guess.get("position","") or ""), (ans.get("position","") or "")
-    same_group = any(_has(c, gp_raw) and _has(c, ap_raw) for c in ('G','F','C'))
+    gset = set(pos_codes(gp_raw))
+    aset = set(pos_codes(ap_raw))
+    same_group = bool(gset and aset and (gset & aset))
     out["position"] = "green" if same_group else "black"
     # height (그린: 동일, 옐로우: ±3cm)
     gh = _int_or_none(guess.get("height_cm"))
@@ -315,12 +308,16 @@ def api_guess():
     team_filter = (data.get("team_filter") or "").strip()
     team_of_guess = (data.get("team_of_guess") or "").strip()
 
+    # 표준화된 팀 키(별칭 포함)로 정규화
+    team_filter_norm = normalize_team_key(team_filter)
+    team_of_guess_norm = normalize_team_key(team_of_guess) if team_of_guess else ""
+
     # resolve the guessed player: prefer exact (name+team) if provided
     idx = None
     candidates: List[int] = []
     raw_norm = normalize_name(raw)
     if team_of_guess:
-        key_team = _normstr(team_of_guess)
+        key_team = team_of_guess_norm  # alias 반영된 팀 키
         for i, p in enumerate(PLAYERS):
             if normalize_name(p.get("name","")) == raw_norm and _normstr(p.get("team","")) == key_team:
                 idx = i
@@ -328,8 +325,8 @@ def api_guess():
     if idx is None:
         candidates = NAME2INDICES.get(raw, []) or NORMNAME2INDICES.get(raw_norm, [])
         if candidates:
-            if team_filter and team_filter not in TEAM_ALL_KEYS:
-                key_team = _normstr(team_filter)
+            if team_filter_norm != "ALL":
+                key_team = team_filter_norm
                 for i in candidates:
                     if _normstr(PLAYERS[i].get("team","")) == key_team:
                         idx = i
