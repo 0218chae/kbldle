@@ -135,6 +135,18 @@ def _ptype_norm(x: Any) -> str:
     }
     return table.get(s, s)
 
+def _fmt_draft(p: Dict[str, Any]) -> str:
+    y = str(p.get("draft_year") or "").strip()
+    t = str(p.get("draft_type") or "").strip()
+    r = str(p.get("draft_round") or "").strip()
+    o = str(p.get("draft_overall") or "").strip()
+    parts = []
+    if y: parts.append(y)
+    if t: parts.append(t)
+    if r: parts.append(f"{r}R")
+    if o: parts.append(o)
+    return " ".join(parts)
+
 def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
     out: Dict[str,str] = {}
     out["team"] = "green" if (guess.get("team","")==ans.get("team","")) else "black"
@@ -192,6 +204,13 @@ def api_guess():
         "height_cm": colors["height_cm"],
         "player_type": colors["player_type"],
         "draft": colors["draft"],
+        # ---- display values for cells ----
+        "team_value": g.get("team",""),
+        "number_value": (str(_int_or_none(g.get("number"))) if _int_or_none(g.get("number")) is not None else str(g.get("number",""))),
+        "position_value": g.get("position",""),
+        "height_cm_value": (str(_int_or_none(g.get("height_cm"))) + "cm" if _int_or_none(g.get("height_cm")) is not None else str(g.get("height_cm",""))),
+        "player_type_value": g.get("player_type",""),
+        "draft_value": _fmt_draft(g),
         "is_correct": (g.get("name","")==a.get("name",""))
     })
 
@@ -229,6 +248,19 @@ def api__answer():
         "draft_type": a.get("draft_type",""),
         "draft_round": a.get("draft_round",""),
         "draft_overall": a.get("draft_overall",""),
+    })
+
+@app.route("/api/answer")
+def api_answer_public():
+    a = answer_player()
+    return jsonify({
+        "name": a.get("name",""),
+        "team_value": a.get("team",""),
+        "number_value": (str(_int_or_none(a.get("number"))) if _int_or_none(a.get("number")) is not None else str(a.get("number",""))),
+        "position_value": a.get("position",""),
+        "height_cm_value": (str(_int_or_none(a.get("height_cm"))) + "cm" if _int_or_none(a.get("height_cm")) is not None else str(a.get("height_cm",""))),
+        "player_type_value": a.get("player_type",""),
+        "draft_value": _fmt_draft(a),
     })
 
 @app.route("/api/_guess_debug")
