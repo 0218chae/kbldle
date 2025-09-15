@@ -147,6 +147,17 @@ def _fmt_draft(p: Dict[str, Any]) -> str:
     if o: parts.append(o)
     return " ".join(parts)
 
+def _same_name(a: Any, b: Any) -> bool:
+    return normalize_name(str(a or "")) == normalize_name(str(b or ""))
+
+def pos_letters(pos: Any) -> set:
+    p = str(pos or "").upper()
+    s = set()
+    for ch in ("G","F","C"):
+        if ch in p:
+            s.add(ch)
+    return s
+
 def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
     out: Dict[str,str] = {}
     out["team"] = "green" if (guess.get("team","")==ans.get("team","")) else "black"
@@ -162,9 +173,13 @@ def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
             out["number"] = "black"
     else:
         out["number"] = "black"
-    # position
+    # position (정확히 같으면 green, 글자 집합 교집합 있으면 yellow)
     gp, ap = (guess.get("position","") or ""), (ans.get("position","") or "")
-    out["position"] = "green" if (gp and gp==ap) else ("yellow" if pos_group(gp)==pos_group(ap) else "black")
+    if gp and ap and gp == ap:
+        out["position"] = "green"
+    else:
+        gs, as_ = pos_letters(gp), pos_letters(ap)
+        out["position"] = "yellow" if (gs and as_ and (gs & as_)) else "black"
     # height (그린: 동일, 옐로우: ±3cm)
     gh = _int_or_none(guess.get("height_cm"))
     ah = _int_or_none(ans.get("height_cm"))
@@ -182,7 +197,7 @@ def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
     # draft
     out["draft"] = "green" if draft_tuple(guess)==draft_tuple(ans) else ("yellow" if draft_yellow(guess,ans) else "black")
     # 정답이면 전부 초록
-    if (guess.get("name","") == ans.get("name","")):
+    if _same_name(guess.get("name",""), ans.get("name","")):
         for k in ["team","number","position","height_cm","player_type","draft"]:
             out[k] = "green"
     return out
@@ -211,7 +226,7 @@ def api_guess():
         "height_cm_value": (str(_int_or_none(g.get("height_cm"))) + "cm" if _int_or_none(g.get("height_cm")) is not None else str(g.get("height_cm",""))),
         "player_type_value": g.get("player_type",""),
         "draft_value": _fmt_draft(g),
-        "is_correct": (g.get("name","")==a.get("name",""))
+        "is_correct": _same_name(g.get("name",""), a.get("name",""))
     })
 
 @app.route("/api/player_info")
