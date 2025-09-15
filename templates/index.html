@@ -28,6 +28,8 @@
     td.cell.black { background:#2c3e50; color:#fff; }
     /* 정답 행은 항상 고정 초록색 */
     tr.correct td.cell.green { background:#2ecc71 !important; color:#fff !important; }
+    /* 정답 행은 어떤 색이 와도 전부 초록으로 강제 */
+    tr.correct td.cell { background:#2ecc71 !important; color:#fff !important; }
     /* 이름 칸은 항상 흰색 */
     table#guesses td.name { background:#fff !important; color:#000 !important; }
     table#guesses td.name.green,
@@ -234,13 +236,13 @@
         if (!r.ok) return;
         const a = await r.json();
         alert(
-          `정답: ${a.name}\\n` +
-          `팀: ${a.team_value}\\n` +
-          `번호: ${a.number_value}\\n` +
-          `포지션: ${a.position_value}\\n` +
-          `키: ${a.height_cm_value}\\n` +
-          `선수구분: ${a.player_type_value}\\n` +
-          `드래프트: ${a.draft_value || '-'}`
+          `정답: ${a.name}
+팀: ${a.team_value}
+번호: ${a.number_value}
+포지션: ${a.position_value}
+키: ${a.height_cm_value}
+선수구분: ${a.player_type_value}
+드래프트: ${a.draft_value || '-'}`
         );
       } catch(e) {}
     }
@@ -283,6 +285,11 @@
       tr.appendChild(makeCell(res.draft_value, res.draft));
       if (res.is_correct) { tr.classList.add('correct'); }
       document.querySelector('#guesses tbody').appendChild(tr);
+      // 입력창/프리뷰 초기화
+      const nameInput = document.getElementById('name');
+      nameInput.value = '';
+      document.getElementById('preview').innerHTML = '';
+      nameInput.focus();
 
       remaining--;
       updateRemainUI();

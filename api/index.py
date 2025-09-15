@@ -271,8 +271,11 @@ def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
     out["player_type"] = "green" if _ptype_norm(guess.get("player_type","")) == _ptype_norm(ans.get("player_type","")) else "black"
     # draft (사용자 지정 규칙)
     out["draft"] = draft_color_by_rule(guess, ans)
-    # 정답이면 전부 초록
-    if _same_name(guess.get("name",""), ans.get("name","")):
+    # 정답이면 전부 초록 (이름+팀 모두 일치해야 함)
+    if (
+        _same_name(guess.get("name",""), ans.get("name","")) and
+        _normstr(guess.get("team","")) == _normstr(ans.get("team",""))
+    ):
         for k in ["team","number","position","height_cm","player_type","draft"]:
             out[k] = "green"
     return out
@@ -327,7 +330,10 @@ def api_guess():
         "height_cm_value": (str(_int_or_none(g.get("height_cm"))) + "cm" if _int_or_none(g.get("height_cm")) is not None else str(g.get("height_cm",""))),
         "player_type_value": g.get("player_type",""),
         "draft_value": _fmt_draft(g),
-        "is_correct": _same_name(g.get("name",""), a.get("name",""))
+        "is_correct": (
+            _same_name(g.get("name",""), a.get("name","")) and
+            _normstr(g.get("team","")) == _normstr(a.get("team",""))
+        )
     })
 
 @app.route("/api/player_info")
