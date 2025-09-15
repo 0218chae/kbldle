@@ -39,6 +39,8 @@
 
     .footer { margin-top:12px; font-size:12px; color:#666; display:flex; justify-content:space-between; gap:8px; align-items:center; }
     .left { display:flex; gap:8px; align-items:center; }
+    .center { flex: 1; text-align: center; }
+    .right { display:flex; align-items:center; }
 
     .teams { display:flex; flex-wrap:wrap; gap:8px; margin: 6px 0 12px; }
     .teams button { padding:6px 10px; border:1px solid #ddd; border-radius:20px; background:#fff; cursor:pointer; font-size: 13px; }
@@ -96,11 +98,16 @@
   </table>
 
   <div class="footer">
-    <div class="left">
-      <span>남은 기회: <strong id="remain">9</strong> / <span id="total">9</span></span>
-    </div>
+  <div class="left">
+    <span>남은 기회: <strong id="remain">9</strong> / <span id="total">9</span></span>
+  </div>
+  <div class="center">
+    <button id="restart" type="button" style="display:none;">다시 시작하기</button>
+  </div>
+  <div class="right">
     <button id="reveal" type="button" style="display:none;">정답 보기</button>
   </div>
+</div>
 
   <script>
     let remaining = 9;
@@ -191,6 +198,7 @@
       if (def) def.classList.add('active');
       setTeam('KBL');
       try { await loadPlayersForCurrentMode(); } catch(e) {}
+      hideRestartButton();
     }
 
     async function loadPreviewFor(name) {
@@ -246,7 +254,9 @@
         );
       } catch(e) {}
     }
-
+    
+    function showRestartButton(){ const b = document.getElementById('restart'); if (b) b.style.display = 'inline-block'; }
+    function hideRestartButton(){ const b = document.getElementById('restart'); if (b) b.style.display = 'none'; }
     async function submitGuess() {
       if (remaining<=0) return;
       const name = document.getElementById('name').value.trim();
@@ -305,8 +315,10 @@
         alert("정답!");
         remaining = 0;
         updateRemainUI();
+        showRestartButton();
       } else if (remaining === 0) {
         await revealAnswer();
+        showRestartButton();
       }
     }
 
@@ -336,6 +348,28 @@
       closeBtn.addEventListener('click', closeHelp);
       modal.addEventListener('click', (e)=>{ if (e.target === modal) closeHelp(); });
       document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeHelp(); });
+      async function restartGame(){
+  try {
+    const r = await fetch('/api/restart', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ team: currentTeam() })
+    });
+    if (!r.ok) { alert('리셋 실패'); return; }
+
+    // UI 리셋
+    document.querySelector('#guesses tbody').innerHTML = '';
+    document.getElementById('preview').innerHTML = '';
+    const input = document.getElementById('name');
+    input.value = ''; input.focus();
+
+    await loadPlayersForCurrentMode();
+    hideRestartButton();
+    document.getElementById('reveal').style.display = 'none';
+  } catch(e) {
+    alert('리셋 실패');
+  }
+}
+document.getElementById('restart').addEventListener('click', restartGame);
     });
   </script>
 

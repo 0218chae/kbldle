@@ -46,6 +46,7 @@ app = Flask(
 
 MAX_GUESSES = 9
 CURRENT_ANSWER_IDX: Dict[str, int] = {}
+LAST_DATE: Optional[str] = None  # 같은 날엔 정답 유지
 
 def now_utc_date_str() -> str:
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
@@ -123,12 +124,27 @@ def answer_player(team_key: Optional[str] = None) -> Dict[str, Any]:
 
 @app.route("/")
 def index():
-    # 새로고침 시 오늘 라운드(정답) 리셋: 팀별 정답 인덱스 캐시를 비움
-    try:
-        CURRENT_ANSWER_IDX.clear()
-    except Exception:
-        pass
+    # 날짜가 바뀌었을 때만 정답 초기화 (새로고침/추측으로는 유지)
+    global LAST_DATE
+    today = kst_today_str()
+    if LAST_DATE != today:
+        try:
+            CURRENT_ANSWER_IDX.clear()
+        except Exception:
+            pass
+        LAST_DATE = today
     return render_template("index.html")
+
+@app.route("/api/restart", methods=["POST"])
+def api_restart():
+    payload = request.get_json(silent=True) or {}
+    team_key = (payload.get("team") or "").strip()
+    nk = normalize_team_key(team_key)
+    pool = filter_players_by_team(team_key)
+    if not pool:
+        return jsonify({"error": "no players"}), 400
+    CURRENT_ANSWER_IDX[nk] = random.randrange(len(pool))
+    return jsonify({"ok": True})
 
 @app.route("/api/status")
 def api_status():
