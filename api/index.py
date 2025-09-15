@@ -255,13 +255,19 @@ def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
             out["number"] = "black"
     else:
         out["number"] = "black"
-    # position: G/F/C 교집합이 있으면 green, 없으면 black (노랑 없음)
+    # position: G/F/C 동일 그룹이면 green (노랑 없음)
+    def _has(code: str, s: Any) -> bool:
+        t = unicodedata.normalize("NFKC", str(s or "")).upper()
+        if code == 'G':
+            return ('G' in t) or ('가드' in t)
+        if code == 'F':
+            return ('F' in t) or ('포워드' in t)
+        if code == 'C':
+            return ('C' in t) or ('센터' in t)
+        return False
     gp_raw, ap_raw = (guess.get("position","") or ""), (ans.get("position","") or "")
-    gs, as_ = pos_letters(gp_raw), pos_letters(ap_raw)
-    if gs and as_ and (gs & as_):
-        out["position"] = "green"
-    else:
-        out["position"] = "black"
+    same_group = any(_has(c, gp_raw) and _has(c, ap_raw) for c in ('G','F','C'))
+    out["position"] = "green" if same_group else "black"
     # height (그린: 동일, 옐로우: ±3cm)
     gh = _int_or_none(guess.get("height_cm"))
     ah = _int_or_none(ans.get("height_cm"))
@@ -424,6 +430,7 @@ def api__guess_debug():
     an = _int_or_none(a.get("number"))
     diff = (abs(gn - an) if gn is not None and an is not None else None)
     colors = compare_fields(g, a)
+    # Add position debug info
     return jsonify({
         "guess_name": g.get("name",""),
         "guess_number_raw": g.get("number",""),
@@ -454,5 +461,9 @@ def api__guess_debug():
             "overall": a.get("draft_overall",""),
         },
         "draft_color": colors.get("draft"),
+        # position debug info
+        "guess_position_raw": g.get("position",""),
+        "answer_position_raw": a.get("position",""),
+        "position_color": colors.get("position"),
         "team_filter": team_filter,
     })
