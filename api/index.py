@@ -175,14 +175,20 @@ def _int_or_none(x: Any) -> Optional[int]:
 def _ptype_norm(x: Any) -> str:
     s = str(x or "").strip()
     s = unicodedata.normalize("NFC", s)
-    # common variants -> unified labels
-    table = {
-        "국내": "국내", "국내선수": "국내",
-        "외국": "외국", "외국선수": "외국", "외국인": "외국",
-        "아시아": "아시아쿼터", "아시아쿼터": "아시아쿼터", "아시아쿼터선수": "아시아쿼터",
-        "귀화": "귀화", "귀화선수": "귀화",
-    }
-    return table.get(s, s)
+    s_compact = re.sub(r"\s+", "", s)  # remove spaces
+    # Map by keyword containment so small variants are absorbed
+    if not s_compact:
+        return ""
+    if "아시아" in s_compact or "AQ" in s_compact.upper():
+        return "아시아쿼터"
+    if "귀화" in s_compact:
+        return "귀화"
+    if "외국" in s_compact or "외인" in s_compact:
+        return "외국"
+    if "국내" in s_compact:
+        return "국내"
+    # Fallback to original trimmed string
+    return s
 
 def _fmt_draft(p: Dict[str, Any]) -> str:
     y = str(p.get("draft_year") or "").strip()
@@ -249,10 +255,10 @@ def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
             out["number"] = "black"
     else:
         out["number"] = "black"
-    # position (동일할 때만 green, 그 외는 black)
+    # position: G/F/C 교집합이 있으면 green, 없으면 black (노랑 없음)
     gp_raw, ap_raw = (guess.get("position","") or ""), (ans.get("position","") or "")
-    gc, ac = pos_codes(gp_raw), pos_codes(ap_raw)
-    if gc and ac and gc == ac:
+    gs, as_ = pos_letters(gp_raw), pos_letters(ap_raw)
+    if gs and as_ and (gs & as_):
         out["position"] = "green"
     else:
         out["position"] = "black"
