@@ -8,11 +8,22 @@ def _normstr(x: Any) -> str:
     return unicodedata.normalize("NFKC", s).strip()
 
 TEAM_ALL_KEYS = {"KBL", "ALL", "전체", "ALL_KBL", ""}
-def filter_players_by_team(team_key: Optional[str]) -> List[Dict[str, Any]]:
+# 팀 별칭 및 표준화 함수
+TEAM_ALIASES: Dict[str, str] = {
+    "서울 삼성 썬더스": "서울 삼성",
+    # 여기에 추가 별칭이 생기면 계속 등록하면 됨
+}
+def normalize_team_key(team_key: Optional[str]) -> str:
     key = _normstr(team_key)
     if key in TEAM_ALL_KEYS:
+        return "ALL"
+    return TEAM_ALIASES.get(key, key)
+
+def filter_players_by_team(team_key: Optional[str]) -> List[Dict[str, Any]]:
+    nk = normalize_team_key(team_key)
+    if nk == "ALL":
         return PLAYERS
-    return [p for p in PLAYERS if _normstr(p.get("team","")) == key]
+    return [p for p in PLAYERS if _normstr(p.get("team","")) == nk]
 
 def kst_today_str() -> str:
     return (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).strftime('%Y-%m-%d')
@@ -102,14 +113,13 @@ for i, p in enumerate(PLAYERS):
     NORMNAME2INDICES[normalize_name(p.get("name",""))].append(i)
 
 def answer_player(team_key: Optional[str] = None) -> Dict[str, Any]:
-    # 팀 필터별로 현재 라운드의 정답 인덱스를 캐싱. 페이지 새로고침 시 index()에서 캐시가 비워져 새로운 정답이 생성됨.
     pool = filter_players_by_team(team_key)
     if not pool:
         return {}
-    key = (team_key or 'ALL')
-    if key not in CURRENT_ANSWER_IDX:
-        CURRENT_ANSWER_IDX[key] = random.randrange(len(pool))
-    return pool[CURRENT_ANSWER_IDX[key]]
+    cache_key = normalize_team_key(team_key) or 'ALL'
+    if cache_key not in CURRENT_ANSWER_IDX:
+        CURRENT_ANSWER_IDX[cache_key] = random.randrange(len(pool))
+    return pool[CURRENT_ANSWER_IDX[cache_key]]
 
 @app.route("/")
 def index():
@@ -123,7 +133,8 @@ def index():
 @app.route("/api/status")
 def api_status():
     team_key = (request.args.get("team") or "").strip()
-    maxg = 19 if (team_key in TEAM_ALL_KEYS) else 9
+    nk = normalize_team_key(team_key)
+    maxg = 19 if (nk == "ALL") else 9
     return jsonify({"max_guesses": maxg, "team": (team_key or "KBL")})
 
 @app.route("/health")
