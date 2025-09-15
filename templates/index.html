@@ -26,6 +26,8 @@
     td.cell.green { background: var(--ok-color); color: var(--ok-fg); }
     td.cell.yellow { background:#f1c40f; color:#000; }
     td.cell.black { background:#2c3e50; color:#fff; }
+    /* 정답 행은 항상 고정 초록색 */
+    tr.correct td.cell.green { background:#2ecc71 !important; color:#fff !important; }
     /* 이름 칸은 항상 흰색 */
     table#guesses td.name { background:#fff !important; color:#000 !important; }
     table#guesses td.name.green,
@@ -116,7 +118,7 @@
       '원주 DB 프로미': '#087f5b',
       '고양 소노 스카이거너스': '#7aaed6',
       '부산 KCC 이지스': '#0a1f62',
-      '서울 삼성': '#0f3b97'
+      '서울 삼성 썬더스': '#0f3b97'
     };
     function setOkColor(hex){
       const el = document.documentElement;
@@ -279,6 +281,7 @@
       tr.appendChild(makeCell(res.height_cm_value, res.height_cm));
       tr.appendChild(makeCell(res.player_type_value, res.player_type));
       tr.appendChild(makeCell(res.draft_value, res.draft));
+      if (res.is_correct) { tr.classList.add('correct'); }
       document.querySelector('#guesses tbody').appendChild(tr);
 
       remaining--;
