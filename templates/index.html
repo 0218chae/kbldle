@@ -36,8 +36,9 @@
     .footer { margin-top:12px; font-size:12px; color:#666; display:flex; justify-content:space-between; gap:8px; align-items:center; }
     .left { display:flex; gap:8px; align-items:center; }
 
-    .mode { margin: 8px 0 12px; }
-    .mode select { padding:6px 8px; border:1px solid #ddd; border-radius:6px; }
+    .teams { display:flex; flex-wrap:wrap; gap:8px; margin: 6px 0 12px; }
+    .teams button { padding:6px 10px; border:1px solid #ddd; border-radius:20px; background:#fff; cursor:pointer; font-size: 13px; }
+    .teams button.active { background:#2ecc71; color:#fff; border-color:#2ecc71; }
 
     @media (max-width: 640px) {
       body { margin: 12px; }
@@ -49,14 +50,8 @@
   </style>
 </head>
 <body>
-  <h1>크블틀(KBL)</h1>
-
-  <div class="mode">
-    <label for="teamFilter">모드: </label>
-    <select id="teamFilter">
-      <option value="KBL" selected>KBL(전체)</option>
-    </select>
-  </div>
+  <h1><span id="titleTeam">KBL</span> 크블틀</h1>
+  <div class="teams" id="teamButtons"></div>
 
   <div class="guess-box">
     <input id="name" list="players" placeholder="선수 이름 입력">
@@ -83,7 +78,7 @@
 
   <div class="footer">
     <div class="left">
-      <span>남은 기회: <strong id="remain">9</strong> / 9</span>
+      <span>남은 기회: <strong id="remain">9</strong> / <span id="total">9</span></span>
     </div>
     <button id="reveal" type="button" style="display:none;">정답 보기</button>
   </div>
@@ -93,14 +88,16 @@
     let allNames = [];
     let nameSet = new Set();
 
-    function currentTeam(){
-      const v = (document.getElementById('teamFilter').value||'').trim();
-      return v || 'KBL';
-    }
+    let teamKey = 'KBL';
+    function currentTeam(){ return teamKey; }
+    function setTeam(newKey){ teamKey = newKey || 'KBL'; document.getElementById('titleTeam').textContent = (teamKey==='KBL'?'KBL':teamKey); }
+
     async function loadPlayersForCurrentMode(){
       const team = currentTeam();
       const st = await (await fetch('/api/status?team=' + encodeURIComponent(team))).json();
-      remaining = st.max_guesses; document.getElementById('remain').textContent = remaining;
+      remaining = st.max_guesses;
+      document.getElementById('remain').textContent = remaining;
+      document.getElementById('total').textContent = st.max_guesses;
 
       const dl = document.getElementById('players');
       dl.innerHTML = '';
@@ -109,36 +106,53 @@
       nameSet = new Set(allNames);
       list.forEach(p => {
         const opt = document.createElement('option');
-        opt.value = p.name;               // 입력값은 이름만 유지
-        opt.textContent = `${p.name} (${p.team}, ${p.number||'-'})`; // 목록에는 팀/번호 노출
+        const label = `${p.name} (${p.team}, ${p.number||'-'})`;
+        opt.value = label;                // 한 줄로 입력창에도 그대로 보이게
+        opt.textContent = label;          // 목록도 동일 표기
         opt.dataset.team = p.team || '';
+        opt.dataset.name = p.name || '';
         opt.dataset.number = p.number || '';
         dl.appendChild(opt);
       });
     }
 
     async function init() {
-      // load teams for mode selector (reuse team roster keys)
       try {
         const t = await (await fetch('/api/teams')).json();
-        const sel = document.getElementById('teamFilter');
+        const wrap = document.getElementById('teamButtons');
+        const makeBtn = (label, key) => {
+          const b = document.createElement('button');
+          b.type = 'button'; b.textContent = label; b.dataset.key = key;
+          b.addEventListener('click', async ()=>{
+            // activate button
+            document.querySelectorAll('#teamButtons button').forEach(x=>x.classList.remove('active'));
+            b.classList.add('active');
+            setTeam(key);
+            await loadPlayersForCurrentMode();
+            document.querySelector('#guesses tbody').innerHTML = '';
+          });
+          return b;
+        };
+        // KBL(전체) 버튼 먼저
+        wrap.appendChild(makeBtn('KBL(전체)', 'KBL'));
+        // 팀 버튼들 추가 (정렬)
         Object.keys(t).sort().forEach(team => {
-          const opt = document.createElement('option');
-          opt.value = team; opt.textContent = team;
-          sel.appendChild(opt);
+          wrap.appendChild(makeBtn(team, team));
         });
-      } catch (e) {}
+        // 기본 활성 버튼
+        wrap.querySelector('button[data-key="KBL"]').classList.add('active');
+        setTeam('KBL');
+      } catch(e) {}
 
       await loadPlayersForCurrentMode();
-      document.getElementById('teamFilter').addEventListener('change', async ()=>{
-        await loadPlayersForCurrentMode();
-        document.querySelector('#guesses tbody').innerHTML = '';
-        remaining = (await (await fetch('/api/status?team=' + encodeURIComponent(currentTeam()))).json()).max_guesses;
-        document.getElementById('remain').textContent = remaining;
-      });
     }
 
     async function loadPreviewFor(name) {
+      // allow "이름 (팀, 번호)" format
+      const m = name.match(/^(.*?)\s*\((.*?),(.*?)\)$/);
+      const previewName = m ? m[1].trim() : name;
+      name = previewName;
+
       if (!nameSet.has(name)) { document.getElementById('preview').innerHTML = ''; return; }
       const r = await fetch('/api/player_info?name=' + encodeURIComponent(name));
       if (!r.ok) { document.getElementById('preview').innerHTML = ''; return; }
@@ -193,13 +207,21 @@
       const name = document.getElementById('name').value.trim();
       if (!name) return;
 
-      const teamFilter = currentTeam();
+      // try to resolve by exact option match
       let teamOfGuess = '';
+      let pureName = name;
       const opts = document.querySelectorAll('#players option');
-      for (const o of opts){ if (o.value === name){ teamOfGuess = o.dataset.team || ''; break; } }
+      for (const o of opts){
+        if (o.value === name){ teamOfGuess = o.dataset.team || ''; pureName = o.dataset.name || pureName; break; }
+      }
+      // fallback: parse "이름 (팀, 번호)" directly
+      if (!teamOfGuess){
+        const m = name.match(/^(.*?)\s*\((.*?),(.*?)\)$/);
+        if (m){ pureName = m[1].trim(); teamOfGuess = (m[2]||'').trim(); }
+      }
       const r = await fetch('/api/guess',{
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ name, team_filter: teamFilter, team_of_guess: teamOfGuess })
+        body: JSON.stringify({ name: pureName, team_filter: currentTeam(), team_of_guess: teamOfGuess })
       });
       if (!r.ok) { alert("선수를 찾을 수 없습니다"); return; }
       const res = await r.json();

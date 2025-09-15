@@ -3,12 +3,16 @@ from flask import Flask, render_template, request, jsonify
 import csv, datetime, hashlib, os, unicodedata, random, re
 from typing import Dict, List, Tuple, Any, Optional
 
+def _normstr(x: Any) -> str:
+    s = str(x or "")
+    return unicodedata.normalize("NFKC", s).strip()
+
 TEAM_ALL_KEYS = {"KBL", "ALL", "전체", "ALL_KBL", ""}
 def filter_players_by_team(team_key: Optional[str]) -> List[Dict[str, Any]]:
-    key = (team_key or "").strip()
+    key = _normstr(team_key)
     if key in TEAM_ALL_KEYS:
         return PLAYERS
-    return [p for p in PLAYERS if str(p.get("team","")) == key]
+    return [p for p in PLAYERS if _normstr(p.get("team","")) == key]
 
 def kst_today_str() -> str:
     return (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).strftime('%Y-%m-%d')
@@ -89,6 +93,13 @@ def load_players(csv_path: str):
 PLAYERS, TEAM_ROSTER = load_players(DATA_CSV)
 NAME2IDX: Dict[str,int] = {p["name"]: i for i,p in enumerate(PLAYERS)}
 NORMNAME2IDX: Dict[str,int] = {normalize_name(p["name"]): i for i,p in enumerate(PLAYERS)}
+
+from collections import defaultdict
+NAME2INDICES: Dict[str, List[int]] = defaultdict(list)
+NORMNAME2INDICES: Dict[str, List[int]] = defaultdict(list)
+for i, p in enumerate(PLAYERS):
+    NAME2INDICES[p.get("name","")].append(i)
+    NORMNAME2INDICES[normalize_name(p.get("name",""))].append(i)
 
 def answer_player(team_key: Optional[str] = None) -> Dict[str, Any]:
     # 팀 필터별로 현재 라운드의 정답 인덱스를 캐싱. 페이지 새로고침 시 index()에서 캐시가 비워져 새로운 정답이 생성됨.
@@ -198,7 +209,7 @@ def pos_letters(pos: Any) -> set:
 
 def compare_fields(guess: Dict[str, Any], ans: Dict[str, Any]) -> Dict[str,str]:
     out: Dict[str,str] = {}
-    out["team"] = "green" if (guess.get("team","")==ans.get("team","")) else "black"
+    out["team"] = "green" if (_normstr(guess.get("team","")) == _normstr(ans.get("team",""))) else "black"
     # number (노란불은 등번호 차이가 ±2일 때만)
     gn = _int_or_none(guess.get("number"))
     an = _int_or_none(ans.get("number"))
@@ -250,13 +261,25 @@ def api_guess():
 
     # resolve the guessed player: prefer exact (name+team) if provided
     idx = None
+    candidates: List[int] = []
+    raw_norm = normalize_name(raw)
     if team_of_guess:
-        for i,p in enumerate(PLAYERS):
-            if p.get("name","") == raw and p.get("team","") == team_of_guess:
+        key_team = _normstr(team_of_guess)
+        for i, p in enumerate(PLAYERS):
+            if normalize_name(p.get("name","")) == raw_norm and _normstr(p.get("team","")) == key_team:
                 idx = i
                 break
     if idx is None:
-        idx = NAME2IDX.get(raw) or NORMNAME2IDX.get(normalize_name(raw))
+        candidates = NAME2INDICES.get(raw, []) or NORMNAME2INDICES.get(raw_norm, [])
+        if candidates:
+            if team_filter and team_filter not in TEAM_ALL_KEYS:
+                key_team = _normstr(team_filter)
+                for i in candidates:
+                    if _normstr(PLAYERS[i].get("team","")) == key_team:
+                        idx = i
+                        break
+            if idx is None:
+                idx = candidates[0]
     if idx is None:
         return jsonify({"error":"등록되지 않은 선수입니다."}), 400
 
@@ -285,7 +308,24 @@ def api_guess():
 @app.route("/api/player_info")
 def api_player_info():
     name = (request.args.get("name") or "").strip()
-    idx = NAME2IDX.get(name) or NORMNAME2IDX.get(normalize_name(name))
+    team_q = _normstr(request.args.get("team"))
+    # parse "이름 (팀, 번호)" if sent accidentally
+    m = re.match(r"^(.*?)\s*\((.*?),(.*?)\)$", name)
+    if m:
+      name = m.group(1).strip()
+      if not team_q:
+          team_q = _normstr(m.group(2))
+    raw_norm = normalize_name(name)
+    idx = None
+    if team_q:
+        for i, p in enumerate(PLAYERS):
+            if normalize_name(p.get("name","")) == raw_norm and _normstr(p.get("team","")) == team_q:
+                idx = i
+                break
+    if idx is None:
+        cand = NAME2INDICES.get(name, []) or NORMNAME2INDICES.get(raw_norm, [])
+        if cand:
+            idx = cand[0]
     if idx is None:
         return jsonify({"error": "not found"}), 404
     p = PLAYERS[idx]
